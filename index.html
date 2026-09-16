@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Запись на маникюр</title>
+    <!-- Подключаем Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -58,6 +59,7 @@
             margin-bottom: 20px;
         }
 
+        /* Кнопки навигации по шагам */
         .step-nav {
             display: flex;
             gap: 10px;
@@ -306,7 +308,6 @@
             font-size: 11px;
             text-transform: uppercase;
             font-weight: 700;
-            color: #34c759;
             margin-bottom: 4px;
         }
 
@@ -321,7 +322,7 @@
             color: var(--hint-color);
         }
 
-        /* Нижнее меню */
+        /* Нижнее меню (Tab Bar) */
         .tab-bar {
             position: fixed;
             bottom: 0;
@@ -529,16 +530,10 @@
         </div>
 
         <div style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Мои записи</div>
-        <div id="user-bookings-list">
-            <div class="booking-card">
-                <div class="booking-status">Предстоящий визит</div>
-                <div class="booking-title">Маникюр + Покрытие</div>
-                <div class="booking-meta">21 Ноября 2026 в 20:00 • 1500 ₽</div>
-            </div>
-        </div>
+        <div id="user-bookings-list"></div>
     </div>
 
-    <!-- Нижняя навигация -->
+    <!-- Нижняя навигация (Tab Bar) -->
     <div class="tab-bar">
         <div class="tab-item active" id="tab-booking" onclick="switchTab('booking')">
             <span style="font-size:18px;">💅</span>
@@ -550,13 +545,13 @@
         </div>
     </div>
 
-    <!-- Оверлей успеха -->
+    <!-- Анимационный оверлей при успешной записи -->
     <div class="success-overlay" id="success-overlay">
         <div class="checkmark-circle">
             <span class="checkmark">✓</span>
         </div>
         <h2 style="margin: 0 0 8px 0;">Запись создана!</h2>
-        <p style="color: var(--hint-color); margin: 0 0 24px 0;">Ваша заявка принята. Ждем вас!</p>
+        <p style="color: var(--hint-color); margin: 0 0 24px 0;">Ваша заявка отправлена мастеру.</p>
         <button class="confirm-submit-btn" style="width: 200px;" onclick="resetApp()">Готово</button>
     </div>
 
@@ -567,7 +562,7 @@
         let currentStep = 1;
         let currentDate = new Date(2026, 8, 1);
 
-        let booking = { service: null, price: null, date: null, time: null, name: "", phone: "" };
+        let booking = { service: null, price: null, date: null, time: null, name: "", phone: "", telegramId: null, username: "" };
         const bookedSlots = { "15.09.2026": ["12:00"], "21.11.2026": ["10:00"] };
         const availableTimes = ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
 
@@ -575,11 +570,14 @@
             if (tg && tg.initDataUnsafe?.user) {
                 const u = tg.initDataUnsafe.user;
                 booking.name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+                booking.telegramId = u.id;
+                booking.username = u.username ? `@${u.username}` : "";
+
                 document.getElementById('client-name').value = booking.name;
                 document.getElementById('profile-name').value = booking.name;
             }
 
-            // Синхронизация полей имени и телефона между экранами
+            // Синхронизация полей ввода
             document.getElementById('profile-name').addEventListener('input', (e) => {
                 document.getElementById('client-name').value = e.target.value;
             });
@@ -692,35 +690,46 @@
             });
         }
 
-       function confirmBooking() {
-    booking.name = document.getElementById('client-name').value;
-    booking.phone = document.getElementById('client-phone').value;
+        function confirmBooking() {
+            booking.name = document.getElementById('client-name').value;
+            booking.phone = document.getElementById('client-phone').value;
 
-    if (!booking.phone) {
-        alert("Укажите номер телефона!");
-        return;
-    }
+            if (!booking.phone) {
+                alert("Пожалуйста, укажите номер телефона!");
+                return;
+            }
 
-    // Сохранение в список в профиле со статусом «В обработке»
-    const list = document.getElementById('user-bookings-list');
-    const newCard = document.createElement('div');
-    newCard.className = 'booking-card';
-    newCard.id = `booking-${Date.now()}`;
-    newCard.innerHTML = `
-        <div class="booking-status" style="color: #ff9500;">⏳ Ожидает подтверждения</div>
-        <div class="booking-title">${booking.service}</div>
-        <div class="booking-meta">${booking.date} в ${booking.time} • ${booking.price}</div>
-    `;
-    list.prepend(newCard);
+            if (tg && tg.initDataUnsafe?.user) {
+                booking.telegramId = tg.initDataUnsafe.user.id;
+                booking.username = tg.initDataUnsafe.user.username ? `@${tg.initDataUnsafe.user.username}` : "";
+            }
 
-    document.getElementById('success-overlay').classList.add('active');
-    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-}
+            // Добавление карточки в профиль
+            const list = document.getElementById('user-bookings-list');
+            if (list) {
+                const newCard = document.createElement('div');
+                newCard.className = 'booking-card';
+                newCard.innerHTML = `
+                    <div class="booking-status" style="color: #ff9500;">⏳ Ожидает подтверждения</div>
+                    <div class="booking-title">${booking.service}</div>
+                    <div class="booking-meta">${booking.date} в ${booking.time} • ${booking.price}</div>
+                `;
+                list.prepend(newCard);
+            }
+
+            document.getElementById('success-overlay').classList.add('active');
+            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        }
 
         function resetApp() {
             document.getElementById('success-overlay').classList.remove('active');
-            if (tg) tg.sendData(JSON.stringify(booking));
-            else goToStep(1);
+            if (tg) {
+                tg.sendData(JSON.stringify(booking));
+                tg.close();
+            } else {
+                alert("Данные для бота:\n" + JSON.stringify(booking, null, 2));
+                goToStep(1);
+            }
         }
     </script>
 </body>
