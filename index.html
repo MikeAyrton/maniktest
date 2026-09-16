@@ -268,10 +268,6 @@
             outline: none;
         }
 
-        .form-input:focus {
-            border-color: var(--button-color);
-        }
-
         .confirm-submit-btn {
             width: 100%;
             background-color: var(--button-color);
@@ -320,7 +316,6 @@
             color: var(--hint-color);
         }
 
-        /* Таб бар */
         .tab-bar {
             position: fixed;
             bottom: 0;
@@ -352,7 +347,6 @@
             font-weight: 700;
         }
 
-        /* Оверлей */
         .success-overlay {
             position: fixed;
             top: 0;
@@ -530,7 +524,7 @@
         <div id="user-bookings-list"></div>
     </div>
 
-    <!-- Таб бар -->
+    <!-- Навигация -->
     <div class="tab-bar">
         <div class="tab-item active" id="tab-booking" onclick="switchTab('booking')">
             <span style="font-size:18px;">💅</span>
@@ -549,10 +543,15 @@
         </div>
         <h2 style="margin: 0 0 8px 0;">Запись создана!</h2>
         <p style="color: var(--hint-color); margin: 0 0 24px 0;">Ваша заявка отправлена мастеру.</p>
-        <button class="confirm-submit-btn" style="width: 200px;" onclick="resetApp()">Готово</button>
+        <button class="confirm-submit-btn" style="width: 200px;" onclick="resetApp()">Закрыть</button>
     </div>
 
     <script>
+        // Вставьте сюда ТОКЕН вашего бота
+        const BOT_TOKEN = "8870415976:AAFzUQekYdpaRxnU7BRzAovyKHOmNfhWIhc";
+        // Вставьте ваш TELEGRAM ID (число)
+        const MASTER_CHAT_ID = "8989850392";
+
         const tg = window.Telegram?.WebApp;
         if (tg) { tg.expand(); tg.ready(); }
 
@@ -560,7 +559,7 @@
         let currentDate = new Date(2026, 8, 1);
         let userBookings = [];
 
-        let booking = { service: null, price: null, date: null, time: null, name: "", phone: "", telegramId: null, username: "" };
+        let booking = { service: null, price: null, date: null, time: null, name: "", phone: "", telegramId: null };
         const bookedSlots = { "15.09.2026": ["12:00"], "21.11.2026": ["10:00"] };
         const availableTimes = ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
 
@@ -569,80 +568,49 @@
                 const u = tg.initDataUnsafe.user;
                 booking.telegramId = u.id;
                 booking.name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-                booking.username = u.username ? `@${u.username}` : "";
+
+                document.getElementById('client-name').value = booking.name;
+                document.getElementById('profile-name').value = booking.name;
             }
 
-            loadDataFromCloud();
+            // Загрузка сохраненного профиля из локального хранилища
+            const savedName = localStorage.getItem("u_name");
+            const savedPhone = localStorage.getItem("u_phone");
+            const savedBookings = localStorage.getItem("u_bookings");
+
+            if (savedName) {
+                document.getElementById('profile-name').value = savedName;
+                document.getElementById('client-name').value = savedName;
+            }
+            if (savedPhone) {
+                document.getElementById('profile-phone').value = savedPhone;
+                document.getElementById('client-phone').value = savedPhone;
+            }
+            if (savedBookings) {
+                userBookings = JSON.parse(savedBookings);
+                renderBookingsList();
+            }
 
             // Синхронизация полей
             document.getElementById('profile-name').addEventListener('input', (e) => {
                 document.getElementById('client-name').value = e.target.value;
-                saveDataToCloud();
+                localStorage.setItem("u_name", e.target.value);
             });
             document.getElementById('profile-phone').addEventListener('input', (e) => {
                 document.getElementById('client-phone').value = e.target.value;
-                saveDataToCloud();
+                localStorage.setItem("u_phone", e.target.value);
             });
             document.getElementById('client-name').addEventListener('input', (e) => {
                 document.getElementById('profile-name').value = e.target.value;
-                saveDataToCloud();
+                localStorage.setItem("u_name", e.target.value);
             });
             document.getElementById('client-phone').addEventListener('input', (e) => {
                 document.getElementById('profile-phone').value = e.target.value;
-                saveDataToCloud();
+                localStorage.setItem("u_phone", e.target.value);
             });
 
             renderCalendar();
         });
-
-        // Загрузка из Telegram CloudStorage + localStorage (двойная надежность)
-        function loadDataFromCloud() {
-            const localName = localStorage.getItem("u_name");
-            const localPhone = localStorage.getItem("u_phone");
-            const localBookings = localStorage.getItem("u_bookings");
-
-            if (localName) document.getElementById('profile-name').value = document.getElementById('client-name').value = localName;
-            if (localPhone) document.getElementById('profile-phone').value = document.getElementById('client-phone').value = localPhone;
-            if (localBookings) {
-                userBookings = JSON.parse(localBookings);
-                renderBookingsList();
-            }
-
-            if (tg && tg.CloudStorage) {
-                tg.CloudStorage.getItems(["u_name", "u_phone", "u_bookings"], (err, values) => {
-                    if (!err && values) {
-                        if (values.u_name) {
-                            document.getElementById('profile-name').value = values.u_name;
-                            document.getElementById('client-name').value = values.u_name;
-                        }
-                        if (values.u_phone) {
-                            document.getElementById('profile-phone').value = values.u_phone;
-                            document.getElementById('client-phone').value = values.u_phone;
-                        }
-                        if (values.u_bookings) {
-                            userBookings = JSON.parse(values.u_bookings);
-                            renderBookingsList();
-                        }
-                    }
-                });
-            }
-        }
-
-        // Сохранение в Telegram CloudStorage
-        function saveDataToCloud() {
-            const name = document.getElementById('profile-name').value;
-            const phone = document.getElementById('profile-phone').value;
-
-            localStorage.setItem("u_name", name);
-            localStorage.setItem("u_phone", phone);
-            localStorage.setItem("u_bookings", JSON.stringify(userBookings));
-
-            if (tg && tg.CloudStorage) {
-                tg.CloudStorage.setItem("u_name", name);
-                tg.CloudStorage.setItem("u_phone", phone);
-                tg.CloudStorage.setItem("u_bookings", JSON.stringify(userBookings));
-            }
-        }
 
         function renderBookingsList() {
             const container = document.getElementById('user-bookings-list');
@@ -680,7 +648,7 @@
                 document.getElementById('tab-profile').classList.add('active');
                 document.getElementById('tab-booking-content').style.display = 'none';
                 document.getElementById('tab-profile-content').style.display = 'block';
-                loadDataFromCloud();
+                renderBookingsList();
             }
         }
 
@@ -773,6 +741,7 @@
             });
         }
 
+        // ОТПРАВКА СООБЩЕНИЙ ЧЕРЕЗ ПРЯМОЙ TELEGRAM BOT API
         function confirmBooking() {
             booking.name = document.getElementById('client-name').value;
             booking.phone = document.getElementById('client-phone').value;
@@ -782,11 +751,11 @@
                 return;
             }
 
-            booking.id = Date.now();
-            booking.status = 'pending';
+            const bookingId = Date.now();
 
+            // Сохраняем в список профиля
             userBookings.unshift({
-                id: booking.id,
+                id: bookingId,
                 service: booking.service,
                 date: booking.date,
                 time: booking.time,
@@ -794,7 +763,45 @@
                 status: 'pending'
             });
 
-            saveDataToCloud();
+            localStorage.setItem("u_bookings", JSON.stringify(userBookings));
+            renderBookingsList();
+
+            // 1. Отправляем сообщение Мастеру напрямую
+            const masterMessage = `🔔 **НОВАЯ ЗАЯВКА НА ЗАПИСЬ!**\n\n👤 **Клиент:** ${booking.name}\n📞 **Телефон:** ${booking.phone}\n💅 **Услуга:** ${booking.service}\n📅 **Дата:** ${booking.date} в ${booking.time}\n💰 **Сумма:** ${booking.price}`;
+            
+            const masterKeyboard = {
+                inline_keyboard: [[
+                    {
+                        text: "✅ Подтвердить запись",
+                        callback_data: `confirm_${booking.telegramId || 0}_${bookingId}_${booking.date}_${booking.time}`
+                    }
+                ]]
+            };
+
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: MASTER_CHAT_ID,
+                    text: masterMessage,
+                    parse_mode: 'Markdown',
+                    reply_markup: masterKeyboard
+                })
+            });
+
+            // 2. Отправляем подтверждение Клиенту (если есть telegramId)
+            if (booking.telegramId) {
+                const clientMessage = `⏳ **Ваша заявка отправлена мастеру!**\n\n💅 **Услуга:** ${booking.service}\n📅 **Дата:** ${booking.date} в ${booking.time}\n💰 **Стоимость:** ${booking.price}\n\nОжидайте подтверждения.`;
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: booking.telegramId,
+                        text: clientMessage,
+                        parse_mode: 'Markdown'
+                    })
+                });
+            }
 
             document.getElementById('success-overlay').classList.add('active');
             if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
@@ -802,13 +809,8 @@
 
         function resetApp() {
             document.getElementById('success-overlay').classList.remove('active');
-            if (tg) {
-                tg.sendData(JSON.stringify(booking));
-                tg.close();
-            } else {
-                alert("Данные для бота:\n" + JSON.stringify(booking, null, 2));
-                goToStep(1);
-            }
+            if (tg) tg.close();
+            else goToStep(1);
         }
     </script>
 </body>
