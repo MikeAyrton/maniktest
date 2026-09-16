@@ -692,29 +692,30 @@
             });
         }
 
-        function confirmBooking() {
-            booking.name = document.getElementById('client-name').value;
-            booking.phone = document.getElementById('client-phone').value;
+       function confirmBooking() {
+    booking.name = document.getElementById('client-name').value;
+    booking.phone = document.getElementById('client-phone').value;
 
-            if (!booking.phone) {
-                alert("Укажите номер телефона!");
-                return;
-            }
+    if (!booking.phone) {
+        alert("Укажите номер телефона!");
+        return;
+    }
 
-            // Добавление новой записи в список в профиле
-            const list = document.getElementById('user-bookings-list');
-            const newCard = document.createElement('div');
-            newCard.className = 'booking-card';
-            newCard.innerHTML = `
-                <div class="booking-status">Предстоящий визит</div>
-                <div class="booking-title">${booking.service}</div>
-                <div class="booking-meta">${booking.date} в ${booking.time} • ${booking.price}</div>
-            `;
-            list.prepend(newCard);
+    // Сохранение в список в профиле со статусом «В обработке»
+    const list = document.getElementById('user-bookings-list');
+    const newCard = document.createElement('div');
+    newCard.className = 'booking-card';
+    newCard.id = `booking-${Date.now()}`;
+    newCard.innerHTML = `
+        <div class="booking-status" style="color: #ff9500;">⏳ Ожидает подтверждения</div>
+        <div class="booking-title">${booking.service}</div>
+        <div class="booking-meta">${booking.date} в ${booking.time} • ${booking.price}</div>
+    `;
+    list.prepend(newCard);
 
-            document.getElementById('success-overlay').classList.add('active');
-            if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        }
+    document.getElementById('success-overlay').classList.add('active');
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+}
 
         function resetApp() {
             document.getElementById('success-overlay').classList.remove('active');
