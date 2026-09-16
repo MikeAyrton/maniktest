@@ -555,6 +555,9 @@
     </div>
 
     <script>
+        // Укажите публичный HTTPS URL вашего Python API (ngrok/localtunnel)
+        const BACKEND_API_URL = "https://your-api-domain.ngrok-free.app";
+
         const tg = window.Telegram?.WebApp;
         if (tg) { tg.expand(); tg.ready(); }
 
@@ -568,66 +571,79 @@
         document.addEventListener("DOMContentLoaded", () => {
             if (tg && tg.initDataUnsafe?.user) {
                 const u = tg.initDataUnsafe.user;
-                booking.name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
                 booking.telegramId = u.id;
+                booking.name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
                 booking.username = u.username ? `@${u.username}` : "";
+
+                document.getElementById('client-name').value = booking.name;
+                document.getElementById('profile-name').value = booking.name;
+
+                // Запрашиваем живые данные и статусы записей из базы бэкенда
+                fetchBookingsFromAPI(booking.telegramId);
             }
 
-            // Восстановление сохраненных данных из локальной памяти браузера
-            const savedPhone = localStorage.getItem("user_phone");
-            const savedName = localStorage.getItem("user_name");
-            const savedBookings = JSON.parse(localStorage.getItem("user_bookings") || "[]");
-
-            if (savedName) booking.name = savedName;
-            if (savedPhone) booking.phone = savedPhone;
-
-            document.getElementById('client-name').value = booking.name || "";
-            document.getElementById('profile-name').value = booking.name || "";
-            document.getElementById('client-phone').value = booking.phone || "";
-            document.getElementById('profile-phone').value = booking.phone || "";
-
-            // Отрисовка сохраненных записей в профиле
-            renderSavedBookings(savedBookings);
-
-            // Авто-сохранение вводов при изменениях
+            // Синхронизация полей ввода
             document.getElementById('profile-name').addEventListener('input', (e) => {
                 document.getElementById('client-name').value = e.target.value;
-                localStorage.setItem("user_name", e.target.value);
             });
             document.getElementById('profile-phone').addEventListener('input', (e) => {
                 document.getElementById('client-phone').value = e.target.value;
-                localStorage.setItem("user_phone", e.target.value);
             });
             document.getElementById('client-name').addEventListener('input', (e) => {
                 document.getElementById('profile-name').value = e.target.value;
-                localStorage.setItem("user_name", e.target.value);
             });
             document.getElementById('client-phone').addEventListener('input', (e) => {
                 document.getElementById('profile-phone').value = e.target.value;
-                localStorage.setItem("user_phone", e.target.value);
             });
 
             renderCalendar();
         });
 
-        function renderSavedBookings(bookingsList) {
-            const listContainer = document.getElementById('user-bookings-list');
-            listContainer.innerHTML = '';
-            
-            if (bookingsList.length === 0) {
-                listContainer.innerHTML = '<div style="color: var(--hint-color); font-size: 14px;">У вас пока нет активных записей</div>';
+        // Запрос к API сервера SQLite
+        function fetchBookingsFromAPI(userId) {
+            fetch(`${BACKEND_API_URL}/api/user_bookings?user_id=${userId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.name) {
+                        document.getElementById('profile-name').value = data.name;
+                        document.getElementById('client-name').value = data.name;
+                    }
+                    if (data.phone) {
+                        document.getElementById('profile-phone').value = data.phone;
+                        document.getElementById('client-phone').value = data.phone;
+                    }
+                    renderBookingsList(data.bookings || []);
+                })
+                .catch(err => {
+                    console.error("Ошибка API загрузки:", err);
+                    renderBookingsList([]);
+                });
+        }
+
+        // Динамический рендер списка записей с цветными статусами
+        function renderBookingsList(bookings) {
+            const container = document.getElementById('user-bookings-list');
+            container.innerHTML = '';
+
+            if (!bookings || bookings.length === 0) {
+                container.innerHTML = '<div style="color: var(--hint-color); font-size: 14px;">У вас пока нет активных записей</div>';
                 return;
             }
 
-            bookingsList.forEach(item => {
+            bookings.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'booking-card';
+
+                const isConfirmed = item.status === 'confirmed';
+                const statusText = isConfirmed ? '✅ Подтверждено' : '⏳ Ожидает подтверждения';
+                const statusColor = isConfirmed ? '#34c759' : '#ff9500';
+
                 card.innerHTML = `
-                    <div class="booking-status" style="color: #ff9500;">⏳ Ожидает подтверждения</div>
+                    <div class="booking-status" style="color: ${statusColor};">${statusText}</div>
                     <div class="booking-title">${item.service}</div>
                     <div class="booking-meta">${item.date} в ${item.time} • ${item.price}</div>
                 `;
-                listContainer.appendChild(card);
+                container.appendChild(card);
             });
         }
 
@@ -641,6 +657,11 @@
                 document.getElementById('tab-profile').classList.add('active');
                 document.getElementById('tab-booking-content').style.display = 'none';
                 document.getElementById('tab-profile-content').style.display = 'block';
+
+                // При каждом переходе в Профиль запрашиваем обновленные статусы
+                if (booking.telegramId) {
+                    fetchBookingsFromAPI(booking.telegramId);
+                }
             }
         }
 
@@ -746,17 +767,6 @@
                 booking.telegramId = tg.initDataUnsafe.user.id;
                 booking.username = tg.initDataUnsafe.user.username ? `@${tg.initDataUnsafe.user.username}` : "";
             }
-
-            // Сохранение новой записи в список в памяти устройства
-            const savedBookings = JSON.parse(localStorage.getItem("user_bookings") || "[]");
-            savedBookings.unshift({
-                service: booking.service,
-                date: booking.date,
-                time: booking.time,
-                price: booking.price
-            });
-            localStorage.setItem("user_bookings", JSON.stringify(savedBookings));
-            renderSavedBookings(savedBookings);
 
             document.getElementById('success-overlay').classList.add('active');
             if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
