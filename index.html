@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Запись на маникюр</title>
-    <!-- Подключаем Telegram WebApp SDK -->
+    <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -59,7 +59,6 @@
             margin-bottom: 20px;
         }
 
-        /* Кнопки навигации по шагам */
         .step-nav {
             display: flex;
             gap: 10px;
@@ -288,7 +287,7 @@
             box-shadow: 0 4px 12px rgba(233, 30, 99, 0.25);
         }
 
-        /* Стили для Профиля и Записей */
+        /* Стили для Профиля */
         .profile-card {
             background-color: var(--secondary-bg);
             border-radius: var(--radius-lg);
@@ -322,7 +321,7 @@
             color: var(--hint-color);
         }
 
-        /* Нижнее меню (Tab Bar) */
+        /* Нижнее меню */
         .tab-bar {
             position: fixed;
             bottom: 0;
@@ -354,7 +353,7 @@
             font-weight: 700;
         }
 
-        /* Анимация успеха */
+        /* Оверлей успеха */
         .success-overlay {
             position: fixed;
             top: 0;
@@ -533,7 +532,7 @@
         <div id="user-bookings-list"></div>
     </div>
 
-    <!-- Нижняя навигация (Tab Bar) -->
+    <!-- Нижняя навигация -->
     <div class="tab-bar">
         <div class="tab-item active" id="tab-booking" onclick="switchTab('booking')">
             <span style="font-size:18px;">💅</span>
@@ -545,7 +544,7 @@
         </div>
     </div>
 
-    <!-- Анимационный оверлей при успешной записи -->
+    <!-- Оверлей успеха -->
     <div class="success-overlay" id="success-overlay">
         <div class="checkmark-circle">
             <span class="checkmark">✓</span>
@@ -572,21 +571,65 @@
                 booking.name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
                 booking.telegramId = u.id;
                 booking.username = u.username ? `@${u.username}` : "";
-
-                document.getElementById('client-name').value = booking.name;
-                document.getElementById('profile-name').value = booking.name;
             }
 
-            // Синхронизация полей ввода
+            // Восстановление сохраненных данных из локальной памяти браузера
+            const savedPhone = localStorage.getItem("user_phone");
+            const savedName = localStorage.getItem("user_name");
+            const savedBookings = JSON.parse(localStorage.getItem("user_bookings") || "[]");
+
+            if (savedName) booking.name = savedName;
+            if (savedPhone) booking.phone = savedPhone;
+
+            document.getElementById('client-name').value = booking.name || "";
+            document.getElementById('profile-name').value = booking.name || "";
+            document.getElementById('client-phone').value = booking.phone || "";
+            document.getElementById('profile-phone').value = booking.phone || "";
+
+            // Отрисовка сохраненных записей в профиле
+            renderSavedBookings(savedBookings);
+
+            // Авто-сохранение вводов при изменениях
             document.getElementById('profile-name').addEventListener('input', (e) => {
                 document.getElementById('client-name').value = e.target.value;
+                localStorage.setItem("user_name", e.target.value);
             });
             document.getElementById('profile-phone').addEventListener('input', (e) => {
                 document.getElementById('client-phone').value = e.target.value;
+                localStorage.setItem("user_phone", e.target.value);
+            });
+            document.getElementById('client-name').addEventListener('input', (e) => {
+                document.getElementById('profile-name').value = e.target.value;
+                localStorage.setItem("user_name", e.target.value);
+            });
+            document.getElementById('client-phone').addEventListener('input', (e) => {
+                document.getElementById('profile-phone').value = e.target.value;
+                localStorage.setItem("user_phone", e.target.value);
             });
 
             renderCalendar();
         });
+
+        function renderSavedBookings(bookingsList) {
+            const listContainer = document.getElementById('user-bookings-list');
+            listContainer.innerHTML = '';
+            
+            if (bookingsList.length === 0) {
+                listContainer.innerHTML = '<div style="color: var(--hint-color); font-size: 14px;">У вас пока нет активных записей</div>';
+                return;
+            }
+
+            bookingsList.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'booking-card';
+                card.innerHTML = `
+                    <div class="booking-status" style="color: #ff9500;">⏳ Ожидает подтверждения</div>
+                    <div class="booking-title">${item.service}</div>
+                    <div class="booking-meta">${item.date} в ${item.time} • ${item.price}</div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
 
         function switchTab(tab) {
             document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
@@ -704,18 +747,16 @@
                 booking.username = tg.initDataUnsafe.user.username ? `@${tg.initDataUnsafe.user.username}` : "";
             }
 
-            // Добавление карточки в профиль
-            const list = document.getElementById('user-bookings-list');
-            if (list) {
-                const newCard = document.createElement('div');
-                newCard.className = 'booking-card';
-                newCard.innerHTML = `
-                    <div class="booking-status" style="color: #ff9500;">⏳ Ожидает подтверждения</div>
-                    <div class="booking-title">${booking.service}</div>
-                    <div class="booking-meta">${booking.date} в ${booking.time} • ${booking.price}</div>
-                `;
-                list.prepend(newCard);
-            }
+            // Сохранение новой записи в список в памяти устройства
+            const savedBookings = JSON.parse(localStorage.getItem("user_bookings") || "[]");
+            savedBookings.unshift({
+                service: booking.service,
+                date: booking.date,
+                time: booking.time,
+                price: booking.price
+            });
+            localStorage.setItem("user_bookings", JSON.stringify(savedBookings));
+            renderSavedBookings(savedBookings);
 
             document.getElementById('success-overlay').classList.add('active');
             if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
